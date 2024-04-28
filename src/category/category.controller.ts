@@ -15,50 +15,21 @@ export class CategoryController {
 
 
   @Post('add')
-  @UseInterceptors(FileInterceptor('image')) // 'image' is the name of the field in the form-data
-  async createCategory(
-    @UploadedFile() categoryImage: Express.Multer.File,
-    @Body() categoryData: any
-  ): Promise<Category> {
-    // Handle file upload
-    const { categoryId, categoryName, description } = categoryData;
-
-    // Read the image file as binary data
-    const imageData = fs.readFileSync(categoryImage.path);
-
-    // Create a new category instance with image data
-    const createdCategory = new this.categoryModel({
-      categoryId,
-      categoryName,
-      description,
-      category_img: imageData // Storing image data directly
-    });
-
-    // Save the category to the database
-    return createdCategory.save();
-  }
-
-  @Get('images/:categoryId')
-  async serveImage(@Param('categoryId') categoryId: string, @Res() res: any) {
+  async createCategory(@Body() category: Category, @Body() file: Buffer) {
     try {
-      // Fetch the category from MongoDB based on the categoryId
-      const category = await this.categoryModel.find();
-
-      // Check if the category exists and has image data
-      // if (!category || !category.category_img) {
-      //   return res.send('Image not found');
-      // }
-
-      // Send the image data back to the frontend
-      res.setHeader('Content-Type', 'image/jpeg'); // Adjust content type based on your image format
-      res.send(category);
+      const createdCategory = await this.categoryService.create(category, file);
+      return createdCategory;
     } catch (error) {
-      console.error('Error serving image:', error);
-      return res.status(500).send('Internal Server Error');
+      console.error(error);
+      throw new Error('Failed to create category');
     }
   }
 
-}
+  // async createCategory(@Body() categoryData: { category: Category, file: Buffer }): Promise<Category> {
+  //   const { category, file } = categoryData;
+  //   return this.categoryService.create(category, file);
+  // }
+  }
 
 //   @Post('/add')
   

@@ -20,6 +20,7 @@ export class UploadService {
 
             }),
         );
+
     }
 
     async getAllFiles(): Promise<string[]> {
@@ -29,7 +30,9 @@ export class UploadService {
 
         const response = await this.s3client.send(new ListObjectsV2Command(params));
         if (response.Contents) {
-            return response.Contents.map(object => object.Key);
+            console.log(response);
+            const baseUrl = `https://satva-homes-img-upload.s3.ap-northeast-1.amazonaws.com/` 
+            return response.Contents.map(object => baseUrl + object.Key);
         } else {
             return [];
         }
