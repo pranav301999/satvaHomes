@@ -10,9 +10,7 @@ import { UploadService } from 'src/upload/upload.service';
 // import { GridFSBucket, GridFSBucketReadStream } from 'mongodb';
 
 @Module({
-    imports:[MongooseModule.forFeature([{ name: 'Category', schema: CategorySchema }]), MulterModule.register({
-        dest: `./uploads`, // Destination folder for uploaded files
-      }),],
+    imports:[MongooseModule.forFeature([{ name: 'Category', schema: CategorySchema }]),],
     providers: [CategoryService, UploadService],
     controllers: [CategoryController],
 })
