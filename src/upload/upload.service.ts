@@ -1,4 +1,4 @@
-import { ListObjectsV2Command, PutObjectAclCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, ListObjectsV2Command, PutObjectAclCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Body, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { promises } from 'dns';
@@ -33,6 +33,21 @@ export class UploadService {
         } else {
             return [];
         }
+    }
+
+    async getFileByKey(key: string): Promise<{ key: string, content: string }> {
+        const params = {
+            Key: key,
+            Bucket: 'satva-homes-img-upload'
+        };
+
+        const command = new GetObjectCommand(params);
+        const response = await this.s3client.send(command);
+        
+        // Convert the response.Body to a base64 string
+        const content = (await response.Body?.transformToString('base64')) || "";
+
+        return { key, content };
     }
 
    

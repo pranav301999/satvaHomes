@@ -23,4 +23,9 @@ export class UploadController {
         return this.uploadService.getAllFiles();
     }
 
+    @Get('files/:key')
+    async getFileByKey(@Param('key') key: string): Promise<{ key: string, content: string }> {
+        return this.uploadService.getFileByKey(key);
+    }
+
 }
