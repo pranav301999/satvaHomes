@@ -32,6 +32,7 @@ export class UploadService {
         if (response.Contents) {
             console.log(response);
             const baseUrl = `https://satva-homes-img-upload.s3.ap-northeast-1.amazonaws.com/` 
+            
             return response.Contents.map(object => baseUrl + object.Key);
         } else {
             return [];
