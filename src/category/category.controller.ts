@@ -4,6 +4,7 @@ import { CategoryService } from './category.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { InjectModel, MongooseModule } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { join } from 'path';
 
 
 
@@ -36,7 +37,7 @@ export class CategoryController {
       const objectKey = categoryId;
 
       // Fetch the image object URL from S3
-      const imageUrl = await this.categoryService.getImageObjectUrl('sh-categories', objectKey);
+      const imageUrl = await this.categoryService.getImageObjectUrl('html-img', objectKey);
 
       return imageUrl;
     } catch (error) {
@@ -45,30 +46,20 @@ export class CategoryController {
     }
   }
   
-
-  @Get('generate-pdf')
-  async generatePDFWithImagesFromS3(): Promise<string> {
-    try {
-      const generatedPdf = await this.categoryService.generatePDFWithImagesFromS3();
-      console.log(generatedPdf);
-      
-      return generatedPdf;
-      
-      // return 'PDF generated successfully!';
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      return 'Failed to generate PDF!';
-    }
+  @Post('uploadhtml')
+  async uploadImage(@Body() body: { htmlContent: string, fileName: string }): Promise<{ imageUrl: string }> {
+    const { htmlContent, fileName } = body;
+    const imageUrl = await this.categoryService.htmlToImage(htmlContent, fileName);
+    return { imageUrl };
   }
 
-  //     // Save the category to the database
-  //     return createdCategory.save();
-  //   }
-  // }
+  @Post('generate-pdf')
+  @UseInterceptors(FileInterceptor('htmlFile'))
+  async generatePdf(@UploadedFile() htmlFile: Express.Multer.File): Promise<string> {
+    const pdfUrl = await this.categoryService.generatePdf(htmlFile.buffer);
+    return pdfUrl;
+  }
 
-  // @Get('/retrieve')
-  // async findAll(): Promise<Category[]> {
-  //   return this.categoryService.findAll();
-  // }
+  
 }
 

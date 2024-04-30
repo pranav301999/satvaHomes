@@ -9,8 +9,11 @@ import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as PDFDocument from 'pdfkit';
+import * as htmlToPdf from 'html-pdf';
+import * as path from 'path';
 import { Readable } from 'stream';
 import { promisify } from 'util';
+import puppeteer, { executablePath } from 'puppeteer-core';
 
 
 
@@ -90,6 +93,96 @@ export class CategoryService {
 
   }
 
+  async htmlToImage(htmlContent: string, fileName: string): Promise<string> {
+    const browser = await puppeteer.launch({
+            executablePath: '/usr/bin/google-chrome'
+  });
+    const page = await browser.newPage();
+    await page.setContent(htmlContent);
+
+    // Adjust viewport size if needed
+    // await page.setViewport({ width: 1920, height: 1080 });
+
+    // Capture screenshot
+    const screenshotBuffer = await page.screenshot();
+    await browser.close();
+
+    // Upload image to S3
+    const uploadResult = await this.uploadToS3(fileName, screenshotBuffer);
+    return uploadResult.Location;
+  }
+
+  private async uploadToS3(fileName: string, data: Buffer): Promise<any> {
+    const params = {
+      Bucket: 'html-img',
+      Key: fileName,
+      Body: data,
+      ContentType: 'image/png' // adjust content type as needed
+    };
+
+    return this.s3client.send(new PutObjectCommand(params));
+  }
+
+  async generatePdf(htmlBuffer: Buffer): Promise<string> {
+    const pdfBuffer = await this.createPdf(htmlBuffer);
+    const fileName = `generated-pdf-${Date.now()}.pdf`;
+    const pdfUrl = await this.uploadingToS3(fileName, pdfBuffer);
+    return pdfUrl;
+  }
+
+  private async createPdf(htmlBuffer: Buffer): Promise<Buffer> {
+    return new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument();
+      const buffers: Buffer[] = [];
+
+      doc.on('data', (buffer: Buffer) => buffers.push(buffer));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', (err) => reject(err));
+
+      doc.font('Helvetica');
+      doc.text(htmlBuffer.toString('utf-8'));
+
+      doc.end();
+    });
+  }
+
+  private async uploadingToS3(fileName: string, data: Buffer): Promise<string> {
+    const params = {
+      Bucket: 'html-img',
+      Key: fileName,
+      Body: data,
+      ContentType: 'application/pdf'
+    };
+
+    await this.s3client.send(new PutObjectCommand(params));
+    return `https://html-img.s3.ap-northeast-1.amazonaws.com/${fileName}`;
+  }
+
+  // async generatePdf(htmlBuffer: Buffer): Promise<string> {
+  //   const browser = await puppeteer.launch({executablePath: '/usr/bin/google-chrome'});
+  //   const page = await browser.newPage();
+  //   await page.setContent(htmlBuffer.toString('utf-8'));
+  //   const pdfBuffer = await page.pdf();
+  //   await browser.close();
+
+  //   const fileName = `generated-pdf-${Date.now()}.pdf`;
+  //   const pdfUrl = await this.uploadingToS3(fileName, pdfBuffer);
+
+  //   return pdfUrl;
+  // }
+
+  // private async uploadingToS3(fileName: string, data: Buffer): Promise<string> {
+  //   const params = {
+  //     Bucket: 'html-img',
+  //     Key: fileName,
+  //     Body: data,
+  //     ContentType: 'application/pdf'
+  //   };
+
+  //   await this.s3client.send(new PutObjectCommand(params));
+  //   return `https://html-img.s3.ap-northeast-1.amazonaws.com/${fileName}`;
+  // }
+
   async getImageObjectUrl(bucketName: string, objectKey: string): Promise<string> {
     try {
       // Fetch the object (image) from S3
@@ -108,77 +201,8 @@ export class CategoryService {
     }
   }
 
-  async generatePDFWithImagesFromS3(): Promise<any> {
-    const categories = await this.categoryModel.find().exec();
-    const s3 = new S3Client({ region: this.configService.getOrThrow('AWS_S3_Region') }); // Replace 'your-region' with your S3 bucket region
-
-
-    const { Contents } = await this.s3client.send(
-      new ListObjectsV2Command({ Bucket: 'sh-categories' })
-    );
-
-
-    const doc = new PDFDocument();
-    const stream = fs.createWriteStream('categories.pdf');
-
-    doc.pipe(stream);
-
-    // for (const category of categories) {
-    //   // Fetch image from S3 based on category_img URL
-    //   const imageUrl = await this.getImageObjectUrl('sh-categories', category.category_img);
-    //   console.log(imageUrl);
-      
-    //   // Fetch image from S3
-    //   const params = {
-    //     Bucket: 'sh-categories',
-    //     Key: imageUrl.split('/').pop(),
-    //   };
-
-    for (const object of Contents) {
-      const params = {
-        Bucket: 'sh-categories',
-        Key: object.Key,
-      };
-    
-      
-      // const { Body } = await s3.send(new GetObjectCommand(params));
-      const { Body } = await this.s3client.send(new GetObjectCommand(params));
-
-      // Convert the ReadableStream to Buffer
-      const chunks: Uint8Array[] = [];
-      if (Body instanceof Readable) {
-        Body.on('data', (chunk: Uint8Array) => {
-          chunks.push(chunk);
-        });
-
-        await new Promise<void>((resolve, reject) => { // Specify Promise<void>
-          Body.on('end', () => {
-            resolve();
-          });
-          Body.on('error', (error: Error) => {
-            reject(error);
-          });
-        });
-      }
-
-      const buffer = Buffer.concat(chunks);
-
-      // Embed image in PDF
-      doc.image(buffer, { width: 300 });
-      doc.addPage(); // Add a new page for each image
-    }
-
-     doc.end(); // End PDF generation
-
-     await promisify(stream.end).bind(stream)();
-
-      // Return the path where the PDF is saved
-      return 'categories.pdf';
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      throw new Error('Failed to generate PDF!');
-    }
   
+
   }
 
   
